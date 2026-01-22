@@ -25,6 +25,11 @@ document.head.appendChild(errorStyle);
 
 export default function Room() {
   const { id } = useParams();
+  const runningRef = useRef(false);
+  const stdinRef = useRef(null);
+  const runButtonRef = useRef(null);
+
+
 
   /* ------------------ STATE ------------------ */
   const [language, setLanguage] = useState("javascript");
@@ -42,6 +47,11 @@ export default function Room() {
   const errorDecorationIdsRef = useRef([]);
   const remoteDecorationIdsRef = useRef([]);
   const isDecoratingRef = useRef(false);
+
+
+  useEffect(() => {
+    runningRef.current = running;
+  }, [running]);
 
   function formatTerminalOutput(stdin, stdout, stderr) {
     let result = "";
@@ -208,12 +218,13 @@ export default function Room() {
   }
 
   /* ------------------ RUN CODE ------------------ */
-  function runCode() {
+  async function runCode() {
     if (!editorRef.current) return;
 
     setRunning(true);
     setOutput("");
 
+    // clear previous error decorations
     errorDecorationIdsRef.current = editorRef.current.deltaDecorations(
       errorDecorationIdsRef.current,
       []
@@ -221,10 +232,13 @@ export default function Room() {
 
     const code = editorRef.current.getValue();
 
+    const actualStdin = stdinRef.current?.value || "";
+
     const needsInput =
       /scanf\s*\(|cin\s*>>|input\s*\(/.test(code);
 
-    if (needsInput && stdin.trim() === "") {
+    if (needsInput && actualStdin.trim() === "") {
+
       setOutput(
         "⚠️ This program expects input.\n\nPlease provide stdin before running."
       );
@@ -232,32 +246,45 @@ export default function Room() {
       return;
     }
 
+    try {
+      const res = await fetch("http://localhost:4000/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code, language, stdin }),
+      });
 
-    fetch("http://localhost:4000/run", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        code: editorRef.current.getValue(),
-        language,
-        stdin,
-      }),
-    })
-      .then((r) => r.json())
-      .then((data) => {
-        const terminalText = formatTerminalOutput(
-          stdin,
-          data.stdout,
-          data.stderr
-        );
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
 
-        setOutput(terminalText);
+      let fullOutput = "";
+      let stderrBuffer = "";
 
-        setTimeout(() => {
-          applyErrorsToMonaco(data.stderr, language);
-        }, 0);
-      })
-      .finally(() => setRunning(false));
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        fullOutput += chunk;
+        setOutput(fullOutput);
+
+        // naive stderr detection for error highlighting
+        if (chunk.includes("error") || chunk.includes("Traceback")) {
+          stderrBuffer += chunk;
+        }
+      }
+
+      // Apply Monaco error decorations AFTER execution ends
+      if (stderrBuffer) {
+        applyErrorsToMonaco(stderrBuffer, language);
+      }
+
+    } catch (err) {
+      setOutput("❌ Failed to execute code");
+    } finally {
+      setRunning(false);
+    }
   }
+
 
   /* ------------------ PROVIDER ------------------ */
   useEffect(() => {
@@ -314,6 +341,18 @@ export default function Room() {
       });
     });
 
+    editor.addCommand(
+      monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
+      () => {
+        if (runButtonRef.current && !running) {
+          runButtonRef.current.click();
+        }
+      }
+    );
+
+
+
+
     rebuildRemoteDecorations();
   }
 
@@ -328,70 +367,74 @@ export default function Room() {
 
   /* ------------------ UI ------------------ */
   return (
-  <div className="h-screen flex flex-col bg-gray-950">
+    <div className="h-screen flex flex-col bg-gray-950">
 
-    {/* TOP BAR */}
-    <div className="p-4 bg-gray-800 text-white flex justify-between">
-      <h2>Room: {id}</h2>
+      {/* TOP BAR */}
+      <div className="p-4 bg-gray-800 text-white flex justify-between">
+        <h2>Room: {id}</h2>
 
-      <div className="flex gap-4">
-        <select
-          value={language}
-          onChange={(e) => setLanguage(e.target.value)}
-          className="bg-gray-700 px-3 py-1 rounded"
-        >
-          {LANGUAGES.map((l) => (
-            <option key={l.value} value={l.value}>
-              {l.label}
-            </option>
-          ))}
-        </select>
+        <div className="flex gap-4">
+          <select
+            value={language}
+            onChange={(e) => setLanguage(e.target.value)}
+            className="bg-gray-700 px-3 py-1 rounded"
+          >
+            {LANGUAGES.map((l) => (
+              <option key={l.value} value={l.value}>
+                {l.label}
+              </option>
+            ))}
+          </select>
 
-        <button
-          onClick={runCode}
-          disabled={running}
-          className="bg-green-600 px-4 py-1 rounded"
-        >
-          {running ? "Running..." : "Run"}
-        </button>
+          <button
+            ref={runButtonRef}
+            onClick={runCode}
+            disabled={running}
+            title="Ctrl + Enter to Run"
+            className={`px-4 py-1 rounded ${running ? "bg-green-700 cursor-not-allowed" : "bg-green-600"
+              }`}
+          >
+            {running ? "Running..." : "Run"}
+          </button>
+
+
+
+        </div>
+      </div>
+
+      {/* MAIN */}
+      <div className="flex-1 flex flex-col min-h-0">
+
+        {/* EDITOR */}
+        <div className="flex-1 min-h-0">
+          <Editor
+            height="100%"
+            theme="vs-dark"
+            defaultLanguage="javascript"
+            onMount={handleEditorMount}
+          />
+        </div>
+
+        {/* STDIN */}
+        <div className="h-32 bg-gray-900 border-t border-gray-700 flex flex-col">
+          <textarea
+            ref={stdinRef}
+            value={stdin}
+            onChange={(e) => setStdin(e.target.value)}
+            placeholder="Example:\n5\n10\nhello"
+            className="flex-1 p-3 bg-black text-white font-mono text-sm outline-none resize-none"
+          />
+        </div>
+
+        {/* TERMINAL */}
+        <div className="h-48 bg-black border-t border-gray-700">
+          <pre className="h-full p-3 text-green-400 text-sm overflow-auto font-mono whitespace-pre-wrap">
+            {output || "▶ Click Run to execute code"}
+          </pre>
+        </div>
+
       </div>
     </div>
-
-    {/* MAIN */}
-    <div className="flex-1 flex flex-col min-h-0">
-
-      {/* EDITOR */}
-      <div className="flex-1 min-h-0">
-        <Editor
-          height="100%"
-          theme="vs-dark"
-          defaultLanguage="javascript"
-          onMount={handleEditorMount}
-        />
-      </div>
-
-      {/* STDIN */}
-      <div className="h-32 bg-gray-900 border-t border-gray-700 flex flex-col">
-        {/* <div className="px-3 py-1 text-xs text-gray-400 border-b border-gray-700">
-          💡 Non-interactive stdin (like Codeforces / LeetCode)
-        </div> */}
-        <textarea
-          value={stdin}
-          onChange={(e) => setStdin(e.target.value)}
-          placeholder="Example:\n5\n10\nhello"
-          className="flex-1 p-3 bg-black text-white font-mono text-sm outline-none resize-none"
-        />
-      </div>
-
-      {/* TERMINAL */}
-      <div className="h-48 bg-black border-t border-gray-700">
-        <pre className="h-full p-3 text-green-400 text-sm overflow-auto font-mono whitespace-pre-wrap">
-          {output || "▶ Click Run to execute code"}
-        </pre>
-      </div>
-
-    </div>
-  </div>
-);
+  );
 
 }

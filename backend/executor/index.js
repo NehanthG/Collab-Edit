@@ -6,13 +6,17 @@ import path from "path";
 import cors from "cors";
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: "200kb" }));
 app.use(cors());
+
+const TIMEOUT_MS = 3000;
 
 app.post("/run", (req, res) => {
   const { code, language, stdin } = req.body || {};
+
   if (!code || !language) {
-    return res.status(400).json({ error: "Code or language missing" });
+    res.status(400).end("Code or language missing");
+    return;
   }
 
   let fileName, dockerImage, runCommand;
@@ -21,55 +25,84 @@ app.post("/run", (req, res) => {
     fileName = "main.js";
     dockerImage = "node:18";
     runCommand = ["node", "/app/main.js"];
-  } 
+  }
   else if (language === "python") {
     fileName = "main.py";
     dockerImage = "python:3.11";
     runCommand = ["python", "/app/main.py"];
-  } 
+  }
   else if (language === "c") {
     fileName = "main.c";
     dockerImage = "gcc:13";
-    runCommand = ["bash", "-lc", "gcc /app/main.c -o /app/main && /app/main"];
-  } 
+    runCommand = ["bash", "-lc", "gcc /app/main.c -o /tmp/main && /tmp/main"];
+  }
   else if (language === "cpp") {
     fileName = "main.cpp";
     dockerImage = "gcc:13";
-    runCommand = ["bash", "-lc", "g++ /app/main.cpp -o /app/main && /app/main"];
-  } 
-  else {
-    return res.status(400).json({ error: "Unsupported language" });
+    runCommand = ["bash", "-lc", "g++ /app/main.cpp -o /tmp/main && /tmp/main"];
   }
+  else {
+    res.status(400).end("Unsupported language");
+    return;
+  }
+
+  // 🔹 Enable streaming
+  res.setHeader("Content-Type", "text/plain; charset=utf-8");
+  res.setHeader("Transfer-Encoding", "chunked");
 
   const jobDir = fs.mkdtempSync(path.join(os.tmpdir(), "run-"));
   fs.writeFileSync(path.join(jobDir, fileName), code);
 
-  const docker = spawn(
-    "docker",
-    [
-      "run",
-      "--rm",
-      "-i",
-      "--network=none",
-      "-v",
-      `${jobDir}:/app`,
-      dockerImage,
-      ...runCommand
-    ]
-  );
+  const docker = spawn("docker", [
+    "run",
+    "--rm",
+    "-i",
+    "--network=none",
+    "--cpus=0.5",
+    "--memory=256m",
+    "--pids-limit=64",
+    "--ulimit", "cpu=2",
+    "--ulimit", "fsize=1048576",
+    "--security-opt", "no-new-privileges",
+    "-v", `${jobDir}:/app:ro`,
+    dockerImage,
+    ...runCommand
+  ]);
 
-  let stdout = "";
-  let stderr = "";
+  let killedByTimeout = false;
 
-  docker.stdout.on("data", d => stdout += d.toString());
-  docker.stderr.on("data", d => stderr += d.toString());
+  const timer = setTimeout(() => {
+    killedByTimeout = true;
+    docker.kill("SIGKILL");
+  }, TIMEOUT_MS);
 
-  docker.on("close", () => {
-    fs.rmSync(jobDir, { recursive: true, force: true });
-    res.json({ stdout, stderr });
+  // 🔥 STREAM OUTPUT LIVE
+  docker.stdout.on("data", chunk => {
+    res.write(chunk);
   });
 
-  if (stdin) docker.stdin.write(stdin + "\n");
+  docker.stderr.on("data", chunk => {
+    res.write(chunk);
+  });
+
+  docker.on("close", (exitCode) => {
+    clearTimeout(timer);
+    fs.rmSync(jobDir, { recursive: true, force: true });
+
+    if (killedByTimeout) {
+      res.write("\n⛔ Time Limit Exceeded\n");
+    } else if (exitCode !== 0) {
+      res.write(`\n❌ Process exited with code ${exitCode}\n`);
+    } else {
+      res.write("\n✅ Execution finished\n");
+    }
+
+    res.end();
+  });
+
+  if (stdin) {
+    docker.stdin.write(stdin);
+  }
   docker.stdin.end();
 });
 

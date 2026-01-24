@@ -30,9 +30,7 @@ export default function Room() {
   const runButtonRef = useRef(null);
   const [participants, setParticipants] = useState([]);
   const animatedClientsRef = useRef(new Set());
-
-
-
+  const typingTimeoutRef = useRef(null);
 
   /* ------------------ STATE ------------------ */
   const [language, setLanguage] = useState("javascript");
@@ -257,7 +255,7 @@ export default function Room() {
       const res = await fetch("http://localhost:4000/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, language, stdin }),
+        body: JSON.stringify({ code, language, stdin:actualStdin }),
       });
 
       const reader = res.body.getReader();
@@ -325,6 +323,7 @@ export default function Room() {
           users.push({
             ...state.user,
             clientId,
+            typing: state.typing,
           });
         }
       });
@@ -382,6 +381,21 @@ export default function Room() {
       }
     );
 
+    editor.onDidType(() => {
+  const awareness = providerRef.current?.awareness;
+  if (!awareness) return;
+
+  awareness.setLocalStateField("typing", true);
+
+  clearTimeout(typingTimeoutRef.current);
+
+  typingTimeoutRef.current = setTimeout(() => {
+    awareness.setLocalStateField("typing", false);
+  }, 800);
+});
+
+
+
 
 
 
@@ -396,6 +410,11 @@ export default function Room() {
       language
     );
   }, [language]);
+
+
+  const typingUsers = participants.filter(
+    (p) => p.typing && p.clientId !== localClientIdRef.current
+  );
 
   /* ------------------ UI ------------------ */
   return (
@@ -485,6 +504,14 @@ export default function Room() {
             onMount={handleEditorMount}
           />
         </div>
+        {typingUsers.length > 0 && (
+          <div className="px-4 py-1 text-sm text-gray-400 italic">
+            {typingUsers.length === 1
+              ? `${typingUsers[0].name} is typing…`
+              : `${typingUsers.length} people are typing…`}
+          </div>
+        )}
+
 
         {/* STDIN */}
         <div className="h-32 bg-gray-900 border-t border-gray-700 flex flex-col">

@@ -29,6 +29,8 @@ export default function Room() {
   const stdinRef = useRef(null);
   const runButtonRef = useRef(null);
   const [participants, setParticipants] = useState([]);
+  const animatedClientsRef = useRef(new Set());
+
 
 
 
@@ -44,13 +46,14 @@ export default function Room() {
   const providerRef = useRef(null);
   const ydocRef = useRef(null);
   const bindingRef = useRef(null);
+  const localClientIdRef = useRef(null);
 
   const errorDecorationIdsRef = useRef([]);
   const remoteDecorationIdsRef = useRef([]);
   const isDecoratingRef = useRef(false);
 
 
-  
+
 
 
   useEffect(() => {
@@ -292,47 +295,55 @@ export default function Room() {
 
   /* ------------------ PROVIDER ------------------ */
   useEffect(() => {
-  const ydoc = new Y.Doc();
-  ydocRef.current = ydoc;
+    const ydoc = new Y.Doc();
+    ydocRef.current = ydoc;
 
-  const provider = new HocuspocusProvider({
-    url: "ws://localhost:1234",
-    name: id,
-    document: ydoc,
-  });
-
-  providerRef.current = provider;
-
-  provider.awareness.setLocalState({
-    user: {
-      name: "User-" + Math.floor(Math.random() * 10000),
-      color: "#" + Math.floor(Math.random() * 0xffffff).toString(16),
-    },
-  });
-
-  // ✅ PRESENCE LISTENER (correct place)
-  const awareness = provider.awareness;
-
-  const updateParticipants = () => {
-    const users = [];
-    awareness.getStates().forEach((state) => {
-      if (state?.user) users.push(state.user);
+    const provider = new HocuspocusProvider({
+      url: "ws://localhost:1234",
+      name: id,
+      document: ydoc,
     });
-    setParticipants(users);
-  };
 
-  updateParticipants();
-  awareness.on("change", updateParticipants);
+    providerRef.current = provider;
+    localClientIdRef.current = provider.awareness.clientID;
 
-  provider.awareness.on("change", rebuildRemoteDecorations);
 
-  return () => {
-    awareness.off("change", updateParticipants);
-    provider.awareness.off("change", rebuildRemoteDecorations);
-    provider.destroy();
-    ydoc.destroy();
-  };
-}, [id]);
+    provider.awareness.setLocalState({
+      user: {
+        name: "User-" + Math.floor(Math.random() * 10000),
+        color: "#" + Math.floor(Math.random() * 0xffffff).toString(16),
+      },
+    });
+
+    // ✅ PRESENCE LISTENER (correct place)
+    const awareness = provider.awareness;
+
+    const updateParticipants = () => {
+      const users = [];
+      awareness.getStates().forEach((state, clientId) => {
+        if (state?.user) {
+          users.push({
+            ...state.user,
+            clientId,
+          });
+        }
+      });
+
+      setParticipants(users);
+    };
+
+    updateParticipants();
+    awareness.on("change", updateParticipants);
+
+    provider.awareness.on("change", rebuildRemoteDecorations);
+
+    return () => {
+      awareness.off("change", updateParticipants);
+      provider.awareness.off("change", rebuildRemoteDecorations);
+      provider.destroy();
+      ydoc.destroy();
+    };
+  }, [id]);
 
 
   /* ------------------ EDITOR MOUNT ------------------ */
@@ -393,20 +404,43 @@ export default function Room() {
       {/* TOP BAR */}
       <div className="p-4 bg-gray-800 text-white flex justify-between">
         <h2>Room: {id}</h2>
+        <div className="text-sm text-gray-300">
+          👥 {participants.length}
+        </div>
+
 
         <div className="flex items-center gap-2">
-          {participants.map((p, i) => (
-            <div
-              key={i}
-              className="flex items-center gap-2 px-2 py-1 rounded bg-gray-700 text-sm"
-            >
-              <span
-                className="w-2 h-2 rounded-full"
-                style={{ backgroundColor: p.color }}
-              />
-              <span>{p.name}</span>
-            </div>
-          ))}
+          {participants.map((p) => {
+            const isYou = p.clientId === localClientIdRef.current;
+
+            return (
+              <div
+                key={p.clientId}
+                className={`flex items-center gap-2 px-2 py-1 rounded bg-gray-700 text-sm
+    transition-all duration-200 ease-out
+    ${animatedClientsRef.current.has(p.clientId) ? "" : "animate-presence"}
+  `}
+                onAnimationEnd={() => {
+                  animatedClientsRef.current.add(p.clientId);
+                }}
+              >
+
+                <span
+                  className="w-2 h-2 rounded-full"
+                  style={{ backgroundColor: p.color }}
+                />
+                <span>
+                  {p.name}
+                  {isYou && (
+                    <span className="ml-1 text-green-400 font-medium">
+                      (You)
+                    </span>
+                  )}
+                </span>
+              </div>
+            );
+          })}
+
         </div>
 
 

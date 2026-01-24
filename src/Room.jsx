@@ -28,6 +28,7 @@ export default function Room() {
   const runningRef = useRef(false);
   const stdinRef = useRef(null);
   const runButtonRef = useRef(null);
+  const [participants, setParticipants] = useState([]);
 
 
 
@@ -47,6 +48,9 @@ export default function Room() {
   const errorDecorationIdsRef = useRef([]);
   const remoteDecorationIdsRef = useRef([]);
   const isDecoratingRef = useRef(false);
+
+
+  
 
 
   useEffect(() => {
@@ -288,31 +292,48 @@ export default function Room() {
 
   /* ------------------ PROVIDER ------------------ */
   useEffect(() => {
-    const ydoc = new Y.Doc();
-    ydocRef.current = ydoc;
+  const ydoc = new Y.Doc();
+  ydocRef.current = ydoc;
 
-    const provider = new HocuspocusProvider({
-      url: "ws://localhost:1234",
-      name: id,
-      document: ydoc,
+  const provider = new HocuspocusProvider({
+    url: "ws://localhost:1234",
+    name: id,
+    document: ydoc,
+  });
+
+  providerRef.current = provider;
+
+  provider.awareness.setLocalState({
+    user: {
+      name: "User-" + Math.floor(Math.random() * 10000),
+      color: "#" + Math.floor(Math.random() * 0xffffff).toString(16),
+    },
+  });
+
+  // ✅ PRESENCE LISTENER (correct place)
+  const awareness = provider.awareness;
+
+  const updateParticipants = () => {
+    const users = [];
+    awareness.getStates().forEach((state) => {
+      if (state?.user) users.push(state.user);
     });
+    setParticipants(users);
+  };
 
-    providerRef.current = provider;
+  updateParticipants();
+  awareness.on("change", updateParticipants);
 
-    provider.awareness.setLocalState({
-      user: {
-        name: "User-" + Math.floor(Math.random() * 10000),
-        color: "#" + Math.floor(Math.random() * 0xffffff).toString(16),
-      },
-    });
+  provider.awareness.on("change", rebuildRemoteDecorations);
 
-    provider.awareness.on("change", rebuildRemoteDecorations);
+  return () => {
+    awareness.off("change", updateParticipants);
+    provider.awareness.off("change", rebuildRemoteDecorations);
+    provider.destroy();
+    ydoc.destroy();
+  };
+}, [id]);
 
-    return () => {
-      provider.destroy();
-      ydoc.destroy();
-    };
-  }, [id]);
 
   /* ------------------ EDITOR MOUNT ------------------ */
   function handleEditorMount(editor, monaco) {
@@ -372,6 +393,22 @@ export default function Room() {
       {/* TOP BAR */}
       <div className="p-4 bg-gray-800 text-white flex justify-between">
         <h2>Room: {id}</h2>
+
+        <div className="flex items-center gap-2">
+          {participants.map((p, i) => (
+            <div
+              key={i}
+              className="flex items-center gap-2 px-2 py-1 rounded bg-gray-700 text-sm"
+            >
+              <span
+                className="w-2 h-2 rounded-full"
+                style={{ backgroundColor: p.color }}
+              />
+              <span>{p.name}</span>
+            </div>
+          ))}
+        </div>
+
 
         <div className="flex gap-4">
           <select

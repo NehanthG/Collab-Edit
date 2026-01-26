@@ -1,17 +1,17 @@
-import express from "express";
+// import express from "express";
 import { spawn } from "child_process";
 import fs from "fs";
 import os from "os";
 import path from "path";
-import cors from "cors";
+// import cors from "cors";
 
-const app = express();
-app.use(express.json({ limit: "200kb" }));
-app.use(cors());
+// const app = express();
+// app.use(express.json({ limit: "200kb" }));
+// app.use(cors());
 
 const TIMEOUT_MS = 3000;
 
-app.post("/run", (req, res) => {
+export async function runCode(req,res) {
   const { code, language, stdin } = req.body || {};
 
   if (!code || !language) {
@@ -104,8 +104,4 @@ app.post("/run", (req, res) => {
     docker.stdin.write(stdin);
   }
   docker.stdin.end();
-});
-
-app.listen(4000, () => {
-  console.log("🚀 Executor running on http://localhost:4000");
-});
+};

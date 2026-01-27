@@ -117,6 +117,11 @@ export default function Room() {
 
 
   const handleGitHubLogin = () => {
+    console.log(
+  "VITE_API_URL at runtime =",
+  import.meta.env.VITE_API_URL
+);
+
     window.location.href = `${import.meta.env.VITE_API_URL}/auth/github`;
   };
 

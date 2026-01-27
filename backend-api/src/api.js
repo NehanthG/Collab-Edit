@@ -9,7 +9,17 @@ import { initRTC } from "./rtc.js";
 const app = express();
 const server = http.createServer(app);
 
-app.use(cors());
+const allowedOrigins = [
+  "https://collab-edit-mu.vercel.app",
+  "https://collab-edit-gxkqf9lhk-nehanthgs-projects.vercel.app",
+];
+
+app.use(cors({
+  origin: allowedOrigins,
+  methods: ["GET", "POST"],
+  credentials: true,
+}));
+
 app.use(express.json({ limit: "200kb" }));
 
 app.use("/auth", authRoutes);

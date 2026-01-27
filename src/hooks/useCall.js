@@ -20,6 +20,7 @@ export function useCall(roomId) {
       auth: {
         token: localStorage.getItem("collab_auth_token"),
       },
+      withCredentials: true,
     });
 
     socketRef.current = socket;

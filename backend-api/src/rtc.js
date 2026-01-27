@@ -9,8 +9,10 @@ export function initRTC(server) {
     cors: {
       origin: [
         "http://localhost:5173",
-        "https://your-frontend.onrender.com",
+        "https://collab-edit-mu.vercel.app",
+        "https://collab-edit-gxkqf9lhk-nehanthgs-projects.vercel.app",
       ],
+
       credentials: true,
     },
   });

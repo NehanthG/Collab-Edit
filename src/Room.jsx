@@ -370,10 +370,11 @@ export default function Room() {
     let provider;
 
     async function init() {
+      const token = localStorage.getItem("collab_auth_token");
+      if (!token) return; // ⛔ DO NOT INIT YET
+
       const ydoc = new Y.Doc();
       ydocRef.current = ydoc;
-
-      const token = localStorage.getItem("collab_auth_token");
 
       provider = new HocuspocusProvider({
         url: import.meta.env.VITE_HOCUSPOCUS_URL,
@@ -381,8 +382,6 @@ export default function Room() {
         document: ydoc,
         token,
       });
-
-
 
       providerRef.current = provider;
       localClientIdRef.current = provider.awareness.clientID;
@@ -396,11 +395,11 @@ export default function Room() {
         color: me?.color || "#4ade80",
       });
 
-
       updateParticipants();
       provider.awareness.on("change", updateParticipants);
       provider.awareness.on("change", rebuildRemoteDecorations);
     }
+
 
     init();
 

@@ -1,35 +1,24 @@
+import "dotenv/config";
 import express from "express";
+import http from "http";
 import cors from "cors";
 import authRoutes from "./routes/auth.js";
 import { runCode } from "../executor/index.js";
-import "dotenv/config";
+import { initRTC } from "./rtc.js";
 
 const app = express();
+const server = http.createServer(app);
 
-// ✅ CORS (safe for now, tighten later)
-app.use(
-  cors({
-    origin: "*",
-    credentials: true,
-  })
-);
-
+app.use(cors());
 app.use(express.json({ limit: "200kb" }));
 
-// 🩺 Health check (VERY IMPORTANT)
-app.get("/health", (_, res) => {
-  res.send("OK");
-});
-
-// 🔐 OAuth
 app.use("/auth", authRoutes);
-
-// 🧪 Code execution
 app.post("/run", runCode);
 
-// ✅ Render-compatible port
-const PORT = process.env.PORT || 4000;
+// 👇 THIS IS THE KEY LINE
+initRTC(server);
 
-app.listen(PORT, () => {
-  console.log(`🚀 API server running on port ${PORT}`);
+const PORT = process.env.PORT || 4000;
+server.listen(PORT, () => {
+  console.log(`🚀 API + RTC server running on port ${PORT}`);
 });

@@ -122,28 +122,37 @@ export function useCall(roomId) {
 
   /* ---------------- CALL CONTROLS ---------------- */
   async function joinCall() {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: true,
-      audio: true,
-    });
-
-    localStreamRef.current = stream;
-    setInCall(true);
-
-    socketRef.current.emit("join-call", { roomId });
+  if (!socketRef.current) {
+    console.warn("RTC socket not ready yet");
+    return;
   }
+
+  const stream = await navigator.mediaDevices.getUserMedia({
+    video: true,
+    audio: true,
+  });
+
+  localStreamRef.current = stream;
+  setInCall(true);
+
+  socketRef.current.emit("join-call", { roomId });
+}
+
 
   function leaveCall() {
-    socketRef.current.emit("leave-call", { roomId });
+  if (!socketRef.current) return;
 
-    Object.values(peersRef.current).forEach((pc) => pc.close());
-    peersRef.current = {};
-    setRemotePeerIds([]);
+  socketRef.current.emit("leave-call", { roomId });
 
-    localStreamRef.current?.getTracks().forEach((t) => t.stop());
-    localStreamRef.current = null;
-    setInCall(false);
-  }
+  Object.values(peersRef.current).forEach((pc) => pc.close());
+  peersRef.current = {};
+  setRemotePeerIds([]);
+
+  localStreamRef.current?.getTracks().forEach((t) => t.stop());
+  localStreamRef.current = null;
+  setInCall(false);
+}
+
 
   function toggleMic() {
     localStreamRef.current?.getAudioTracks().forEach(

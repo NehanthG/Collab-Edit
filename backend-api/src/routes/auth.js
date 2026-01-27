@@ -66,8 +66,9 @@ router.get("/github/callback", async (req, res) => {
     );
 
     // 5️⃣ Redirect back to frontend with token
+    const frontendUrl = process.env.FRONTEND_URL;
     res.redirect(
-      `http://localhost:5173/auth/success?token=${jwtToken}`
+      `${frontendUrl}/auth/success?token=${jwtToken}`
     );
   } catch (err) {
     console.error(err);

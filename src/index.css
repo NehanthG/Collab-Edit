@@ -15,3 +15,10 @@
   animation: presenceFadeIn 0.2s ease-out;
 }
 
+button {
+  transition: background-color 0.15s ease, transform 0.05s ease;
+}
+
+button:active {
+  transform: scale(0.96);
+}

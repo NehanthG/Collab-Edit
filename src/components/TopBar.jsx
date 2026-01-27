@@ -64,68 +64,72 @@ export default function TopBar({
       </div>
 
       {/* CENTER */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={joinCall}
-          disabled={inCall}
-          className={`px-3 py-1.5 rounded-md text-sm
+      <div className="flex items-center gap-3 bg-gray-800 px-3 py-1.5 rounded-lg">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={joinCall}
+            disabled={inCall}
+            className={`px-3 py-1.5 rounded-md text-sm
             ${inCall ? "bg-gray-700" : "bg-blue-600 hover:bg-blue-500"}`}
-        >
-          {inCall ? "In Call" : "Join Call"}
-        </button>
+          >
+            {inCall ? "In Call" : "Join Call"}
+          </button>
 
-        <button
-          onClick={leaveCall}
-          disabled={!inCall}
-          className="px-3 py-1.5 rounded-md bg-red-600 hover:bg-red-500 text-sm disabled:opacity-50"
-        >
-          Leave
-        </button>
+          <button
+            onClick={leaveCall}
+            disabled={!inCall}
+            className="px-3 py-1.5 rounded-md bg-red-600 hover:bg-red-500 text-sm disabled:opacity-50"
+          >
+            Leave
+          </button>
 
-        <div className="w-px h-6 bg-gray-700" />
+          <div className="w-px h-6 bg-gray-700" />
 
-        <button
-          onClick={toggleMic}
-          disabled={!inCall}
-          className={`px-3 py-1.5 rounded-md text-sm
+          <button
+            onClick={toggleMic}
+            disabled={!inCall}
+            className={`px-3 py-1.5 rounded-md text-sm
             ${micEnabled ? "bg-gray-700" : "bg-red-600"}`}
-        >
-          {micEnabled ? "🎙️" : "🔇"}
-        </button>
+          >
+            {micEnabled ? "🎙️" : "🔇"}
+          </button>
 
-        <button
-          onClick={toggleCamera}
-          disabled={!inCall}
-          className={`px-3 py-1.5 rounded-md text-sm
+          <button
+            onClick={toggleCamera}
+            disabled={!inCall}
+            className={`px-3 py-1.5 rounded-md text-sm
             ${cameraEnabled ? "bg-gray-700" : "bg-red-600"}`}
-        >
-          {cameraEnabled ? "📷" : "🚫"}
-        </button>
+          >
+            {cameraEnabled ? "📷" : "🚫"}
+          </button>
+        </div>
       </div>
 
       {/* RIGHT */}
-      <div className="flex items-center gap-4">
-        <select
-          value={language}
-          onChange={(e) => setLanguage(e.target.value)}
-          className="bg-gray-800 px-3 py-1.5 rounded-md text-sm"
-        >
-          {LANGUAGES.map((l) => (
-            <option key={l.value} value={l.value}>
-              {l.label}
-            </option>
-          ))}
-        </select>
+      <div className="flex items-center gap-3 bg-gray-800 px-3 py-1.5 rounded-lg">
+        <div className="flex items-center gap-4">
+          <select
+            value={language}
+            onChange={(e) => setLanguage(e.target.value)}
+            className="bg-gray-700 px-3 py-1.5 rounded-md text-sm"
+          >
+            {LANGUAGES.map((l) => (
+              <option key={l.value} value={l.value}>
+                {l.label}
+              </option>
+            ))}
+          </select>
 
-        <button
-          ref={runButtonRef}
-          onClick={runCode}
-          disabled={running}
-          className={`px-4 py-1.5 rounded-md text-sm
+          <button
+            ref={runButtonRef}
+            onClick={runCode}
+            disabled={running}
+            className={`px-4 py-1.5 rounded-md text-sm
             ${running ? "bg-green-700" : "bg-green-600 hover:bg-green-500"}`}
-        >
-          {running ? "Running…" : "Run"}
-        </button>
+          >
+            {running ? "Running…" : "Run"}
+          </button>
+        </div>
       </div>
     </header>
   );

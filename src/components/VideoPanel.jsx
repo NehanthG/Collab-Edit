@@ -41,7 +41,8 @@ export default function VideoPanel({
             autoPlay
             muted
             playsInline
-            className="w-full h-40 rounded-lg bg-black object-cover"
+            className="w-full aspect-video rounded-lg bg-black object-cover"
+
           />
           <span className="absolute bottom-1 left-1 bg-black/70 text-xs px-2 py-0.5 rounded">
             You
@@ -55,9 +56,9 @@ export default function VideoPanel({
               ref={(el) => el && (remoteVideosRef.current[peerId] = el)}
               autoPlay
               playsInline
-              className="w-full h-40 rounded-lg bg-black object-cover"
+              className="w-full aspect-video rounded-lg bg-black object-cover"
             />
-            <div className="absolute bottom-1 left-1 bg-black/70 flex items-center gap-1 px-2 py-0.5 rounded text-xs">
+            <div className="absolute bottom-1 left-1 bg-black/60 backdrop-blur flex items-center gap-1 px-2 py-0.5 rounded text-xs">
               {peerUsers[peerId]?.avatar && (
                 <img
                   src={peerUsers[peerId].avatar}

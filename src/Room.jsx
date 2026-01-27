@@ -434,60 +434,88 @@ export default function Room() {
 
   /* ------------------ EDITOR MOUNT ------------------ */
   function handleEditorMount(editor, monaco) {
-    editorRef.current = editor;
-    monacoRef.current = monaco;
+  editorRef.current = editor;
+  monacoRef.current = monaco;
 
-    const yText = ydocRef.current.getText("monaco");
+  const provider = providerRef.current;
+  const ydoc = ydocRef.current;
 
-    bindingRef.current = new MonacoBinding(
-      yText,
-      editor.getModel(),
-      new Set([editor]),
-      providerRef.current.awareness
-    );
+  // 🔴 HARD GUARDS — DO NOT REMOVE
+  if (!editor || !provider || !ydoc) return;
 
-    editor.onDidChangeCursorSelection((e) => {
-      providerRef.current.awareness.setLocalStateField("selection", {
-        start: {
-          line: e.selection.startLineNumber,
-          column: e.selection.startColumn,
-        },
-        end: {
-          line: e.selection.endLineNumber,
-          column: e.selection.endColumn,
-        },
-      });
-    });
+  const model = editor.getModel();
+  if (!model) return;
 
-    editor.addCommand(
-      monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
-      () => {
-        if (runButtonRef.current && !running) {
-          runButtonRef.current.click();
-        }
-      }
-    );
+  const yText = ydoc.getText("monaco");
+  if (!yText) return;
 
-    editor.onDidType(() => {
-      const awareness = providerRef.current?.awareness;
-      if (!awareness) return;
-
-      awareness.setLocalStateField("typing", true);
-
-      clearTimeout(typingTimeoutRef.current);
-
-      typingTimeoutRef.current = setTimeout(() => {
-        awareness.setLocalStateField("typing", false);
-      }, 800);
-    });
-
-
-
-
-
-
-    rebuildRemoteDecorations();
+  // 🔥 DESTROY any existing binding FIRST
+  if (bindingRef.current) {
+    bindingRef.current.destroy();
+    bindingRef.current = null;
   }
+
+  // ✅ SAFE binding creation
+  bindingRef.current = new MonacoBinding(
+    yText,
+    model,
+    new Set([editor]),
+    provider.awareness
+  );
+
+  // ---------------- Cursor awareness ----------------
+  editor.onDidChangeCursorSelection((e) => {
+    const awareness = providerRef.current?.awareness;
+    if (!awareness) return;
+
+    awareness.setLocalStateField("selection", {
+      start: {
+        line: e.selection.startLineNumber,
+        column: e.selection.startColumn,
+      },
+      end: {
+        line: e.selection.endLineNumber,
+        column: e.selection.endColumn,
+      },
+    });
+  });
+
+  // ---------------- Run shortcut ----------------
+  editor.addCommand(
+    monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
+    () => {
+      if (runButtonRef.current && !running) {
+        runButtonRef.current.click();
+      }
+    }
+  );
+
+  // ---------------- Typing awareness ----------------
+  editor.onDidType(() => {
+    const awareness = providerRef.current?.awareness;
+    if (!awareness) return;
+
+    awareness.setLocalStateField("typing", true);
+
+    clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => {
+      awareness.setLocalStateField("typing", false);
+    }, 800);
+  });
+
+  // Initial decorations (safe now)
+  rebuildRemoteDecorations();
+}
+
+useEffect(() => {
+  return () => {
+    if (bindingRef.current) {
+      bindingRef.current.destroy();
+      bindingRef.current = null;
+    }
+  };
+}, []);
+
 
   /* ------------------ LANGUAGE CHANGE ------------------ */
   useEffect(() => {

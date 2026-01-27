@@ -137,89 +137,104 @@ export default function Room() {
 
   /* ------------------ REMOTE CURSORS + SELECTIONS ------------------ */
   function rebuildRemoteDecorations() {
-    if (!editorRef.current || !monacoRef.current || !providerRef.current) return;
-    if (isDecoratingRef.current) return;
+  if (!editorRef.current || !monacoRef.current || !providerRef.current) return;
+  if (isDecoratingRef.current) return;
 
-    isDecoratingRef.current = true;
+  isDecoratingRef.current = true;
 
-    requestAnimationFrame(() => {
-      const editor = editorRef.current;
-      const monaco = monacoRef.current;
-      const states = providerRef.current.awareness.getStates();
-      const localId = providerRef.current.awareness.clientID;
+  requestAnimationFrame(() => {
+    const editor = editorRef.current;
+    const monaco = monacoRef.current;
+    const provider = providerRef.current;
 
-      const decorations = [];
+    // 🔴 CRITICAL GUARDS (THIS IS WHAT WAS MISSING)
+    if (!editor || !monaco || !provider) {
+      isDecoratingRef.current = false;
+      return;
+    }
 
-      for (const [clientId, state] of states.entries()) {
-        if (clientId === localId) continue;
-        if (!state?.selection || !state?.user) continue;
+    const model = editor.getModel();
+    if (!model) {
+      isDecoratingRef.current = false;
+      return;
+    }
 
-        const { start, end } = state.selection;
-        const color = state.user.color;
+    const states = provider.awareness.getStates();
+    const localId = provider.awareness.clientID;
 
-        if (!start || !end) continue;
+    const decorations = [];
 
-        /* selection */
-        if (start.line !== end.line || start.column !== end.column) {
-          decorations.push({
-            range: new monaco.Range(
-              start.line,
-              start.column,
-              end.line,
-              end.column
-            ),
-            options: {
-              inlineClassName: `remote-selection-${clientId}`,
-            },
-          });
+    for (const [clientId, state] of states.entries()) {
+      if (clientId === localId) continue;
+      if (!state?.selection || !state?.user) continue;
 
-          if (!document.getElementById(`remote-selection-style-${clientId}`)) {
-            const s = document.createElement("style");
-            s.id = `remote-selection-style-${clientId}`;
-            s.innerHTML = `
-              .remote-selection-${clientId} {
-                background: ${color};
-                opacity: 0.35;
-              }
-            `;
-            document.head.appendChild(s);
-          }
-        }
+      const { start, end } = state.selection;
+      const color = state.user.color;
 
-        /* caret */
+      if (!start || !end) continue;
+
+      /* selection */
+      if (start.line !== end.line || start.column !== end.column) {
         decorations.push({
           range: new monaco.Range(
             start.line,
             start.column,
-            start.line,
-            start.column
+            end.line,
+            end.column
           ),
           options: {
-            className: `remote-caret-${clientId}`,
+            inlineClassName: `remote-selection-${clientId}`,
           },
         });
 
-        if (!document.getElementById(`remote-caret-style-${clientId}`)) {
+        if (!document.getElementById(`remote-selection-style-${clientId}`)) {
           const s = document.createElement("style");
-          s.id = `remote-caret-style-${clientId}`;
+          s.id = `remote-selection-style-${clientId}`;
           s.innerHTML = `
-            .remote-caret-${clientId} {
-              border-left: 2px solid ${color};
-              margin-left: -1px;
+            .remote-selection-${clientId} {
+              background: ${color};
+              opacity: 0.35;
             }
           `;
           document.head.appendChild(s);
         }
       }
 
-      remoteDecorationIdsRef.current = editor.deltaDecorations(
-        remoteDecorationIdsRef.current,
-        decorations
-      );
+      /* caret */
+      decorations.push({
+        range: new monaco.Range(
+          start.line,
+          start.column,
+          start.line,
+          start.column
+        ),
+        options: {
+          className: `remote-caret-${clientId}`,
+        },
+      });
 
-      isDecoratingRef.current = false;
-    });
-  }
+      if (!document.getElementById(`remote-caret-style-${clientId}`)) {
+        const s = document.createElement("style");
+        s.id = `remote-caret-style-${clientId}`;
+        s.innerHTML = `
+          .remote-caret-${clientId} {
+            border-left: 2px solid ${color};
+            margin-left: -1px;
+          }
+        `;
+        document.head.appendChild(s);
+      }
+    }
+
+    remoteDecorationIdsRef.current = editor.deltaDecorations(
+      remoteDecorationIdsRef.current,
+      decorations
+    );
+
+    isDecoratingRef.current = false;
+  });
+}
+
 
   /* ------------------ EXECUTION ERROR HIGHLIGHT ------------------ */
   function applyErrorsToMonaco(stderr, language) {

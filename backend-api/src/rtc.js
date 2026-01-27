@@ -6,16 +6,13 @@ const activeCalls = new Map(); // roomId -> Set(socketId)
 
 export function initRTC(server) {
   const io = new SocketServer(server, {
-    cors: {
-      origin: [
-        "http://localhost:5173",
-        "https://collab-edit-mu.vercel.app",
-        "https://collab-edit-nehanthgs-projects.vercel.app",
-      ],
+  cors: {
+    origin: true, // ✅ allow all origins
+    methods: ["GET", "POST"],
+    credentials: true,
+  },
+});
 
-      credentials: true,
-    },
-  });
 
   io.use((socket, next) => {
     const token = socket.handshake.auth?.token;

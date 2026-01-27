@@ -6,7 +6,10 @@ import * as Y from "yjs";
 import { HocuspocusProvider } from "@hocuspocus/provider";
 import { MonacoBinding } from "y-monaco";
 import { io } from "socket.io-client";
-
+import TopBar from "./components/TopBar.jsx";
+import VideoPanel from "./components/VideoPanel.jsx";
+import EditorPane from "./components/EditorPane.jsx";
+import TerminalPane from "./components/TerminalPane.jsx";
 /* ------------------ LANGUAGES ------------------ */
 const LANGUAGES = [
   { label: "JavaScript", value: "javascript" },
@@ -747,147 +750,25 @@ export default function Room() {
     <div className="h-screen flex flex-col bg-gray-950 text-white">
 
       {/* ================= TOP BAR ================= */}
-      <header className="h-16 px-6 flex items-center justify-between bg-gray-900 border-b border-gray-800">
+      <TopBar
+        roomId={id}
+        participants={participants}
+        localClientId={localClientIdRef.current}
+        language={language}
+        setLanguage={setLanguage}
+        LANGUAGES={LANGUAGES}
+        runCode={runCode}
+        running={running}
+        runButtonRef={runButtonRef}
+        joinCall={joinCall}
+        leaveCall={leaveCall}
+        inCall={inCall}
+        toggleMic={toggleMic}
+        toggleCamera={toggleCamera}
+        micEnabled={micEnabled}
+        cameraEnabled={cameraEnabled}
+      />
 
-        {/* LEFT: ROOM + PARTICIPANTS */}
-        <div className="flex items-center gap-6">
-
-          {/* Room */}
-          <div>
-            <div className="text-xs text-gray-400">Room</div>
-            <div className="font-semibold">{id}</div>
-          </div>
-
-          {/* Participants */}
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-400 flex items-center gap-1">
-              👥 {participants.length}
-            </span>
-
-            <div className="flex -space-x-2">
-              {participants.map((p) => {
-                const isYou = p.clientId === localClientIdRef.current;
-
-                return (
-                  <div
-                    key={p.clientId}
-                    className={`relative group w-8 h-8 rounded-full border-2 border-gray-900 overflow-hidden
-                    ${p.typing && !isYou ? "avatar-typing" : ""}
-                  `}
-                    style={{ backgroundColor: p.color }}
-                  >
-                    {p.avatar ? (
-                      <img
-                        src={p.avatar}
-                        alt={p.name}
-                        className="w-full h-full object-cover"
-                        referrerPolicy="no-referrer"
-                        onError={(e) => (e.currentTarget.style.display = "none")}
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-xs font-bold text-black">
-                        {p.name?.[0]?.toUpperCase() || "?"}
-                      </div>
-                    )}
-
-                    {/* Tooltip */}
-                    <div className="absolute hidden group-hover:block bottom-10 left-1/2 -translate-x-1/2
-                    bg-black text-xs px-2 py-1 rounded whitespace-nowrap">
-                      {p.name} {isYou && "(You)"}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* CENTER: CALL CONTROLS */}
-        <div className="flex items-center gap-3">
-
-          <button
-            onClick={joinCall}
-            disabled={inCall}
-            className={`px-3 py-1.5 rounded-md text-sm
-            ${inCall ? "bg-gray-700 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-500"}
-          `}
-          >
-            {inCall ? "In Call" : "Join Call"}
-          </button>
-
-          <button
-            onClick={leaveCall}
-            disabled={!inCall}
-            className="px-3 py-1.5 rounded-md bg-red-600 hover:bg-red-500 text-sm disabled:opacity-50"
-          >
-            Leave
-          </button>
-
-          <div className="w-px h-6 bg-gray-700" />
-
-          <button
-            onClick={toggleMic}
-            disabled={!localStreamRef.current}
-            className={`px-3 py-1.5 rounded-md text-sm
-            ${micEnabled ? "bg-gray-700" : "bg-red-600"}
-          `}
-          >
-            {micEnabled ? "🎙️" : "🔇"}
-          </button>
-
-          <button
-            onClick={toggleCamera}
-            disabled={!localStreamRef.current}
-            className={`px-3 py-1.5 rounded-md text-sm
-            ${cameraEnabled ? "bg-gray-700" : "bg-red-600"}
-          `}
-          >
-            {cameraEnabled ? "📷" : "🚫"}
-          </button>
-
-
-
-        </div>
-
-        {/* RIGHT: EDITOR CONTROLS + AUTH */}
-        <div className="flex items-center gap-4">
-
-          <select
-            value={language}
-            onChange={(e) => setLanguage(e.target.value)}
-            className="bg-gray-800 px-3 py-1.5 rounded-md text-sm outline-none"
-          >
-            {LANGUAGES.map((l) => (
-              <option key={l.value} value={l.value}>
-                {l.label}
-              </option>
-            ))}
-          </select>
-
-          <button
-            ref={runButtonRef}
-            onClick={runCode}
-            disabled={running}
-            title="Ctrl + Enter"
-            className={`px-4 py-1.5 rounded-md text-sm font-medium
-            ${running ? "bg-green-700 cursor-not-allowed" : "bg-green-600 hover:bg-green-500"}
-          `}
-          >
-            {running ? "Running…" : "Run"}
-          </button>
-
-          <div className="w-px h-6 bg-gray-700" />
-
-          <button
-            onClick={() => {
-              window.location.href = "http://localhost:4000/auth/github";
-            }}
-            className="px-3 py-1.5 rounded-md bg-gray-800 hover:bg-gray-700 text-sm"
-          >
-            GitHub Login
-          </button>
-        </div>
-      </header>
 
       {/* ================= MAIN ================= */}
       <div className="flex-1 flex min-h-0">
@@ -896,114 +777,31 @@ export default function Room() {
         <div className="flex-1 min-w-0 flex flex-col min-h-0">
 
 
-          {/* Editor */}
-          <div className="flex-1 min-h-0">
-            <Editor
-              height="100%"
-              theme="vs-dark"
-              defaultLanguage="javascript"
-              onMount={handleEditorMount}
-            />
-          </div>
+          <EditorPane
+            handleEditorMount={handleEditorMount}
+            typingUsers={typingUsers}
+          />
 
-          {/* Typing Indicator */}
-          <div className={`px-4 py-1 text-sm italic text-gray-400
-          ${typingUsers.length ? "opacity-100" : "opacity-0"}`}
-          >
-            {typingUsers.length === 1
-              ? `${typingUsers[0].name} is typing`
-              : `${typingUsers.length} people are typing`}
-            <span className="typing-dots" />
-          </div>
 
-          {/* STDIN */}
-          <div className="h-32 border-t border-gray-800 bg-gray-900">
-            <textarea
-              ref={stdinRef}
-              value={stdin}
-              onChange={(e) => setStdin(e.target.value)}
-              placeholder="Input…"
-              className="w-full h-full p-3 bg-black text-white font-mono text-sm outline-none resize-none"
-            />
-          </div>
+          <TerminalPane
+            stdin={stdin}
+            setStdin={setStdin}
+            stdinRef={stdinRef}
+            output={output}
+          />
 
-          {/* Output */}
-          <div className="h-48 border-t border-gray-800 bg-black">
-            <pre className="h-full p-3 text-green-400 text-sm overflow-auto font-mono whitespace-pre-wrap">
-              {output || "▶ Click Run to execute code"}
-            </pre>
-          </div>
         </div>
 
         {/* RIGHT: VIDEO PANEL */}
-        <aside
-          className={`relative border-l h-full border-gray-800 bg-gray-900
-    transition-[max-width] duration-300 ease-in-out
-    ${videoOpen ? "max-w-[18rem]" : "max-w-12"}
-    shrink-0 overflow-hidden
-  `}
-        >
+        <VideoPanel
+          videoOpen={videoOpen}
+          setVideoOpen={setVideoOpen}
+          localVideoRef={localVideoRef}
+          remotePeerIds={remotePeerIds}
+          remoteVideosRef={remoteVideosRef}
+          peerUsers={peerUsers}
+        />
 
-          {/* TOGGLE */}
-          <button
-            onClick={() => setVideoOpen((v) => !v)}
-            className="absolute left-0 top-1/2 -translate-y-1/2
-    w-6 h-14
-    bg-gray-800 border-r border-gray-700
-    rounded-r-md
-    flex items-center justify-center
-    text-gray-300 hover:bg-gray-700 hover:text-white
-    transition"
-          >
-            {videoOpen ? "›" : "‹"}
-          </button>
-
-
-
-
-
-          {/* CONTENT */}
-          <div className="h-full flex flex-col p-3 pl-3 gap-3 overflow-y-auto">
-
-            <div className="text-sm text-gray-400">🎥 Call</div>
-
-            {/* LOCAL */}
-            <div className="relative">
-              <video
-                ref={localVideoRef}
-                autoPlay
-                muted
-                playsInline
-                className="w-full h-40 rounded-lg bg-black object-cover"
-              />
-              <span className="absolute bottom-1 left-1 bg-black/70 text-xs px-2 py-0.5 rounded">
-                You
-              </span>
-            </div>
-
-            {/* REMOTE */}
-            {remotePeerIds.map((peerId) => (
-              <div key={peerId} className="relative">
-                <video
-                  ref={(el) => el && (remoteVideosRef.current[peerId] = el)}
-                  autoPlay
-                  playsInline
-                  className="w-full h-40 rounded-lg bg-black object-cover"
-                />
-                <div className="absolute bottom-1 left-1 bg-black/70 flex items-center gap-1 px-2 py-0.5 rounded text-xs">
-                  {peerUsers[peerId]?.avatar && (
-                    <img
-                      src={peerUsers[peerId].avatar}
-                      className="w-4 h-4 rounded-full"
-                      referrerPolicy="no-referrer"
-                    />
-                  )}
-                  {peerUsers[peerId]?.name || "User"}
-                </div>
-              </div>
-            ))}
-          </div>
-        </aside>
 
       </div>
     </div>

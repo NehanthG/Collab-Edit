@@ -16,79 +16,101 @@ export function useCall(roomId) {
 
   /* ---------------- SOCKET SETUP ---------------- */
   useEffect(() => {
-  const token = localStorage.getItem("collab_auth_token");
-  if (!token) return;
+    const token = localStorage.getItem("collab_auth_token");
 
-  const socket = io(import.meta.env.VITE_RTC_URL, {
-    auth: { token },
-    transports: ["websocket"], // 🔑 IMPORTANT
-    withCredentials: true,
-  });
+    if (!token) {
+      console.warn("🚫 RTC not initialized: no auth token");
+      socketRef.current = null;
+      return;
+    }
 
-  socketRef.current = socket;
+    console.log("🔐 RTC auth token found");
 
-  socket.on("call-peers", async (peers) => {
-    for (const peerId of peers) {
-      const pc = createPeerConnection(peerId);
-      peersRef.current[peerId] = pc;
+    const socket = io(import.meta.env.VITE_RTC_URL, {
+      auth: { token },
+      transports: ["websocket"],
+      withCredentials: true,
+    });
+
+    socketRef.current = socket;
+
+    socket.on("connect", () => {
+      console.log("✅ RTC socket connected:", socket.id);
+    });
+
+    socket.on("connect_error", (err) => {
+      console.error("❌ RTC connect_error:", err.message);
+    });
+
+    socket.on("disconnect", (reason) => {
+      console.warn("⚠️ RTC disconnected:", reason);
+    });
+
+    socket.on("call-peers", async (peers) => {
+      for (const peerId of peers) {
+        const pc = createPeerConnection(peerId);
+        peersRef.current[peerId] = pc;
+
+        setRemotePeerIds((prev) =>
+          prev.includes(peerId) ? prev : [...prev, peerId]
+        );
+
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+
+        socket.emit("offer", { to: peerId, sdp: offer });
+      }
+    });
+
+    socket.on("offer", async ({ from, sdp, user }) => {
+      if (user) {
+        setPeerUsers((prev) => ({ ...prev, [from]: user }));
+      }
+
+      const pc = createPeerConnection(from);
+      peersRef.current[from] = pc;
 
       setRemotePeerIds((prev) =>
-        prev.includes(peerId) ? prev : [...prev, peerId]
+        prev.includes(from) ? prev : [...prev, from]
       );
 
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
+      await pc.setRemoteDescription(new RTCSessionDescription(sdp));
 
-      socket.emit("offer", { to: peerId, sdp: offer });
-    }
-  });
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
 
-  socket.on("offer", async ({ from, sdp, user }) => {
-    if (user) {
-      setPeerUsers((prev) => ({ ...prev, [from]: user }));
-    }
+      socket.emit("answer", { to: from, sdp: answer });
+    });
 
-    const pc = createPeerConnection(from);
-    peersRef.current[from] = pc;
+    socket.on("answer", async ({ from, sdp }) => {
+      await peersRef.current[from]?.setRemoteDescription(
+        new RTCSessionDescription(sdp)
+      );
+    });
 
-    setRemotePeerIds((prev) =>
-      prev.includes(from) ? prev : [...prev, from]
-    );
+    socket.on("ice-candidate", ({ from, candidate }) => {
+      peersRef.current[from]?.addIceCandidate(
+        new RTCIceCandidate(candidate)
+      );
+    });
 
-    await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+    socket.on("user-left-call", (socketId) => {
+      peersRef.current[socketId]?.close();
+      delete peersRef.current[socketId];
+      delete remoteVideosRef.current[socketId];
 
-    const answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
+      setRemotePeerIds((prev) =>
+        prev.filter((id) => id !== socketId)
+      );
+    });
 
-    socket.emit("answer", { to: from, sdp: answer });
-  });
+    return () => {
+      console.log("🧹 Cleaning up RTC socket");
+      socket.disconnect();
+      socketRef.current = null;
+    };
+  }, [roomId]);
 
-  socket.on("answer", async ({ from, sdp }) => {
-    await peersRef.current[from]?.setRemoteDescription(
-      new RTCSessionDescription(sdp)
-    );
-  });
-
-  socket.on("ice-candidate", ({ from, candidate }) => {
-    peersRef.current[from]?.addIceCandidate(
-      new RTCIceCandidate(candidate)
-    );
-  });
-
-  socket.on("user-left-call", (socketId) => {
-    peersRef.current[socketId]?.close();
-    delete peersRef.current[socketId];
-    delete remoteVideosRef.current[socketId];
-
-    setRemotePeerIds((prev) =>
-      prev.filter((id) => id !== socketId)
-    );
-  });
-
-  return () => {
-    socket.disconnect();
-  };
-}, [roomId]);
 
 
   /* ---------------- PEER CONNECTION ---------------- */
@@ -122,36 +144,36 @@ export function useCall(roomId) {
 
   /* ---------------- CALL CONTROLS ---------------- */
   async function joinCall() {
-  if (!socketRef.current) {
-    console.warn("RTC socket not ready yet");
-    return;
+    if (!socketRef.current) {
+      console.warn("RTC socket not ready yet");
+      return;
+    }
+
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: true,
+      audio: true,
+    });
+
+    localStreamRef.current = stream;
+    setInCall(true);
+
+    socketRef.current.emit("join-call", { roomId });
   }
-
-  const stream = await navigator.mediaDevices.getUserMedia({
-    video: true,
-    audio: true,
-  });
-
-  localStreamRef.current = stream;
-  setInCall(true);
-
-  socketRef.current.emit("join-call", { roomId });
-}
 
 
   function leaveCall() {
-  if (!socketRef.current) return;
+    if (!socketRef.current) return;
 
-  socketRef.current.emit("leave-call", { roomId });
+    socketRef.current.emit("leave-call", { roomId });
 
-  Object.values(peersRef.current).forEach((pc) => pc.close());
-  peersRef.current = {};
-  setRemotePeerIds([]);
+    Object.values(peersRef.current).forEach((pc) => pc.close());
+    peersRef.current = {};
+    setRemotePeerIds([]);
 
-  localStreamRef.current?.getTracks().forEach((t) => t.stop());
-  localStreamRef.current = null;
-  setInCall(false);
-}
+    localStreamRef.current?.getTracks().forEach((t) => t.stop());
+    localStreamRef.current = null;
+    setInCall(false);
+  }
 
 
   function toggleMic() {

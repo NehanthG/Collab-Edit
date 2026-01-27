@@ -116,6 +116,11 @@ export default function Room() {
   } = useCall(id);
 
 
+  const handleGitHubLogin = () => {
+    window.location.href = `${import.meta.env.VITE_API_URL}/auth/github`;
+  };
+
+
 
 
 
@@ -302,7 +307,7 @@ export default function Room() {
     }
 
     try {
-      const res = await fetch("http://localhost:4000/run", {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/run`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code, language, stdin: actualStdin }),
@@ -371,11 +376,12 @@ export default function Room() {
       const token = localStorage.getItem("collab_auth_token");
 
       provider = new HocuspocusProvider({
-        url: "ws://localhost:1234",
+        url: import.meta.env.VITE_HOCUSPOCUS_URL,
         name: id,
         document: ydoc,
-        token, // 👈 REQUIRED
+        token,
       });
+
 
 
       providerRef.current = provider;
@@ -498,7 +504,9 @@ export default function Room() {
         toggleCamera={toggleCamera}
         micEnabled={micEnabled}
         cameraEnabled={cameraEnabled}
+        onLogin={handleGitHubLogin}
       />
+
 
 
       {/* ================= MAIN ================= */}

@@ -16,7 +16,7 @@ export function useCall(roomId) {
 
   /* ---------------- SOCKET SETUP ---------------- */
   useEffect(() => {
-    const socket = io("http://localhost:5002", {
+    const socket = io(import.meta.env.VITE_RTC_URL, {
       auth: {
         token: localStorage.getItem("collab_auth_token"),
       },

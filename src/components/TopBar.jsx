@@ -15,6 +15,7 @@ export default function TopBar({
   toggleCamera,
   micEnabled,
   cameraEnabled,
+  onLogin
 }) {
   return (
     <header className="h-16 px-6 flex items-center justify-between bg-gray-900 border-b border-gray-800">
@@ -107,6 +108,12 @@ export default function TopBar({
 
       {/* RIGHT */}
       <div className="flex items-center gap-3 bg-gray-800 px-3 py-1.5 rounded-lg">
+        <button
+          onClick={onLogin}
+          className="px-3 py-1.5 rounded-md bg-gray-700 hover:bg-gray-600 text-sm"
+        >
+          GitHub Login
+        </button>
         <div className="flex items-center gap-4">
           <select
             value={language}

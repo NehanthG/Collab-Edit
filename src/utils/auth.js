@@ -1,11 +1,15 @@
 export async function getMe() {
   const token = localStorage.getItem("collab_auth_token");
-  if (!token) return null;
 
-  const res = await fetch("http://localhost:4000/auth/me", {
-    headers: { Authorization: `Bearer ${token}` }
-  });
+  const res = await fetch(
+    `${import.meta.env.VITE_API_URL}/auth/me`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
 
-  if (!res.ok) return null;
+  if (!res.ok) throw new Error("Unauthorized");
   return res.json();
 }

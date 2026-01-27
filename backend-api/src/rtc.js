@@ -10,7 +10,7 @@ export function initRTC(server) {
       origin: [
         "http://localhost:5173",
         "https://collab-edit-mu.vercel.app",
-        "https://collab-edit-gxkqf9lhk-nehanthgs-projects.vercel.app",
+        "https://collab-edit-nehanthgs-projects.vercel.app",
       ],
 
       credentials: true,

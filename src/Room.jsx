@@ -223,46 +223,39 @@ export default function Room() {
 
   /* ------------------ EXECUTION ERROR HIGHLIGHT ------------------ */
   function applyErrorsToMonaco(stderr, language) {
-    if (!stderr || !editorRef.current || !monacoRef.current) return;
+  if (!stderr) return;
 
-    const editor = editorRef.current;
-    const monaco = monacoRef.current;
-    const decorations = [];
+  const editor = editorRef.current;
+  const monaco = monacoRef.current;
+  if (!editor || !monaco) return;
 
-    if (language === "c" || language === "cpp") {
-      for (const line of stderr.split("\n")) {
-        const m = line.match(/\/app\/main\.(c|cpp):(\d+):\d+:\s*error:\s*(.*)/);
-        if (m) {
-          decorations.push({
-            range: new monaco.Range(Number(m[2]), 1, Number(m[2]), 1),
-            options: {
-              isWholeLine: true,
-              className: "execution-error",
-              hoverMessage: [{ value: m[3] }],
-            },
-          });
-          break;
-        }
-      }
-    }
+  const model = editor.getModel();
+  if (!model) return; // ⛔ VERY IMPORTANT
 
-    if (language === "python") {
-      const m = stderr.match(/line (\d+)/);
+  const decorations = [];
+
+  if (language === "c" || language === "cpp") {
+    for (const line of stderr.split("\n")) {
+      const m = line.match(/\/app\/main\.(c|cpp):(\d+):\d+:\s*error:\s*(.*)/);
       if (m) {
         decorations.push({
-          range: new monaco.Range(Number(m[1]), 1, Number(m[1]), 1),
+          range: new monaco.Range(Number(m[2]), 1, Number(m[2]), 1),
           options: {
             isWholeLine: true,
             className: "execution-error",
-            hoverMessage: [{ value: stderr }],
+            hoverMessage: [{ value: m[3] }],
           },
         });
+        break;
       }
     }
+  }
 
-    if (language === "javascript") {
+  if (language === "python") {
+    const m = stderr.match(/line (\d+)/);
+    if (m) {
       decorations.push({
-        range: new monaco.Range(1, 1, 1, 1),
+        range: new monaco.Range(Number(m[1]), 1, Number(m[1]), 1),
         options: {
           isWholeLine: true,
           className: "execution-error",
@@ -270,80 +263,93 @@ export default function Room() {
         },
       });
     }
-
-    errorDecorationIdsRef.current = editor.deltaDecorations(
-      errorDecorationIdsRef.current,
-      decorations
-    );
   }
+
+  if (language === "javascript") {
+    decorations.push({
+      range: new monaco.Range(1, 1, 1, 1),
+      options: {
+        isWholeLine: true,
+        className: "execution-error",
+        hoverMessage: [{ value: stderr }],
+      },
+    });
+  }
+
+  errorDecorationIdsRef.current = editor.deltaDecorations(
+    errorDecorationIdsRef.current,
+    decorations
+  );
+}
+
 
   /* ------------------ RUN CODE ------------------ */
   async function runCode() {
-    if (!editorRef.current) return;
+  const editor = editorRef.current;
+  if (!editor) return;
 
-    setRunning(true);
-    setOutput("");
+  const model = editor.getModel();
+  if (!model) return;
 
-    // clear previous error decorations
-    errorDecorationIdsRef.current = editorRef.current.deltaDecorations(
-      errorDecorationIdsRef.current,
-      []
+  setRunning(true);
+  setOutput("");
+
+  // clear previous error decorations
+  errorDecorationIdsRef.current = editor.deltaDecorations(
+    errorDecorationIdsRef.current,
+    []
+  );
+
+  const code = model.getValue();
+  const actualStdin = stdinRef.current?.value || "";
+
+  const needsInput =
+    /scanf\s*\(|cin\s*>>|input\s*\(/.test(code);
+
+  if (needsInput && actualStdin.trim() === "") {
+    setOutput(
+      "⚠️ This program expects input.\n\nPlease provide stdin before running."
     );
-
-    const code = editorRef.current.getValue();
-
-    const actualStdin = stdinRef.current?.value || "";
-
-    const needsInput =
-      /scanf\s*\(|cin\s*>>|input\s*\(/.test(code);
-
-    if (needsInput && actualStdin.trim() === "") {
-
-      setOutput(
-        "⚠️ This program expects input.\n\nPlease provide stdin before running."
-      );
-      setRunning(false);
-      return;
-    }
-
-    try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/run`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, language, stdin: actualStdin }),
-      });
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-
-      let fullOutput = "";
-      let stderrBuffer = "";
-
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value);
-        fullOutput += chunk;
-        setOutput(fullOutput);
-
-        // naive stderr detection for error highlighting
-        if (chunk.includes("error") || chunk.includes("Traceback")) {
-          stderrBuffer += chunk;
-        }
-      }
-
-      // Apply Monaco error decorations AFTER execution ends
-      if (stderrBuffer) {
-        applyErrorsToMonaco(stderrBuffer, language);
-      }
-
-    } catch (err) {
-      setOutput("❌ Failed to execute code");
-    } finally {
-      setRunning(false);
-    }
+    setRunning(false);
+    return;
   }
+
+  try {
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/run`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code, language, stdin: actualStdin }),
+    });
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+
+    let fullOutput = "";
+    let stderrBuffer = "";
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value);
+      fullOutput += chunk;
+      setOutput(fullOutput);
+
+      if (chunk.includes("error") || chunk.includes("Traceback")) {
+        stderrBuffer += chunk;
+      }
+    }
+
+    if (stderrBuffer) {
+      applyErrorsToMonaco(stderrBuffer, language);
+    }
+  } catch (err) {
+    setOutput("❌ Failed to execute code");
+  } finally {
+    setRunning(false);
+  }
+}
+
 
   const updateParticipants = () => {
     const provider = providerRef.current;
